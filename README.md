@@ -85,6 +85,7 @@ Other commands (all under **Kogentic:** in the command palette):
 
 - **Show Overlapping Plans**: open plans that touch the same files.
 - **Copy Review as Markdown**: a summary for a PR description or chat.
+- **Add .kogentic/ to .gitignore**: see [Files written to your repo](#files-written-to-your-repo-kogentic).
 - **Insert Plan-First Rule**: adds a rule to `AGENTS.md` or `.clinerules` telling agents without a hook
   (Cline, Roo and others) to write `PLAN.md` and wait for approval. This is a soft gate: the agent is asked, not forced.
 
@@ -92,6 +93,10 @@ Settings: `planGlobs`, `includeGlobalPlans`, `recordApprovals` (default off), `g
 `gate.timeoutSeconds` (default 3600), `kogentic.enabled` (default **off**), `kogentic.baseUrl` (no default).
 
 ## Claude Code blocking gate
+
+> **Requires Claude Code v2.1.295 or later** (`claude --version`). The hook uses `onFailure: "block"`,
+> which older versions don't support; on those, Claude Code would carry on if the gate were down.
+> The exact hook entry below was checked with Claude Code 2.1.300, whose settings validation accepts it.
 
 Run **Kogentic: Enable Blocking Gate for Claude Code**. The extension shows the change to
 `.claude/settings.local.json` as a diff and writes it only after you confirm:
@@ -122,9 +127,23 @@ When Claude Code finishes a plan and calls `ExitPlanMode`, the hook posts the pl
 The request is held while the review panel opens. **Approve** answers "allow"; **Request changes** or
 **Reject** answers "deny" with your comments as the reason, so Claude revises the plan. If nobody decides
 within the timeout, the answer is "deny". Because of `onFailure: "block"`, Claude also stays in plan mode
-if VS Code is closed or the gate is not running. `onFailure` needs Claude Code v2.1.295 or later.
+if VS Code is closed or the gate is not running.
 
 **Kogentic: Disable Blocking Gate for Claude Code** removes exactly that hook entry and stops the server.
+
+### The gate token
+
+- The token is **per session**: a new random token every time VS Code starts the gate (each window
+  start, or after Enable). It is never saved, so it stops working when VS Code closes.
+- **Claude Code in VS Code's integrated terminal** gets it automatically as `KOGENTIC_GATE_TOKEN`.
+  Terminals that were already open when the gate started don't have it yet; open a new terminal
+  (VS Code shows a "relaunch" hint on stale terminals).
+- **Claude Code started anywhere else** (an external terminal, tmux, or an editor integration that
+  doesn't use the integrated terminal): run **Kogentic: Copy Claude Code Gate Token** and set it in
+  that shell before starting Claude, for example `export KOGENTIC_GATE_TOKEN=<paste>`. Repeat after
+  each VS Code restart. Don't put the token in a file that gets committed.
+- Without the right token every plan is refused (401), and because of `onFailure: "block"` Claude
+  stays in plan mode. That's the safe failure: fix the token rather than removing the hook.
 
 ### Security model of the gate
 
@@ -136,10 +155,7 @@ if VS Code is closed or the gate is not running. `onFailure` needs Claude Code v
   Requests without the right token get `401` and never reach the review.
 - **The token is never written to disk.** The settings file contains only `$KOGENTIC_GATE_TOKEN`. VS Code
   passes the value to terminals in this window through an environment variable that is not persisted.
-  Terminals opened before the gate started need to be restarted. If you run Claude Code somewhere else
-  (an external terminal, or an editor integration that doesn't use the integrated terminal), use
-  **Kogentic: Copy Claude Code Gate Token** and set `KOGENTIC_GATE_TOKEN` there; without it Claude Code
-  stays blocked, which is the safe failure.
+  See "The gate token" below.
 - **Browser protection.** Requests with an `Origin` header are refused and no CORS headers are ever
   sent, so a web page cannot drive the gate. The `Host` header must be `127.0.0.1:<port>` or
   `localhost:<port>`, which blocks DNS-rebinding attacks.
@@ -148,6 +164,24 @@ if VS Code is closed or the gate is not running. `onFailure` needs Claude Code v
 
 What the gate does **not** protect against: other software running as your user on the same machine can
 read your environment and settings. Treat it as a review tool for your own agent sessions, not a sandbox.
+
+## Files written to your repo (`.kogentic/`)
+
+The extension never edits plan files. It writes its own data under `.kogentic/` in the first workspace folder:
+
+| File | When | Contents |
+|---|---|---|
+| `.kogentic/reviews/<plan-id>.json` | When you comment on or decide a plan | Status, the plan hash the decision applies to, comments (line, excerpt, text), who decided and when |
+| `.kogentic/approvals.jsonl` | Only with `recordApprovals` on | One line per Approve, see below |
+
+The plan id is derived from the plan's path, so a review follows its file. Both are **meant to be
+committed** if you want reviews and an audit trail shared with your team. If you'd rather keep them
+local, run **Kogentic: Add .kogentic/ to .gitignore** (it asks first and does nothing if the entry is
+already there), or add `.kogentic/` to `.gitignore` yourself. With no folder open, reviews go to the
+extension's own storage instead.
+
+Plans in your home folder (`~/.claude/plans`, `~/.cursor/plans`) are reviewed the same way; their
+sidecars also go to the open workspace's `.kogentic/reviews/`.
 
 ## Approval record
 

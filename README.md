@@ -20,7 +20,7 @@ sidecar file. Nothing is sent back to the agent, and nothing blocks or pauses an
 
 No account, no telemetry, no network calls. The optional "Send to Kogentic" connector is off unless you turn it on.
 
-Blocking approval gates and team approval workflows are available in the Kogentic platform.
+Blocking approval gates and team approval workflows are left to the paid Kogentic platform and are not part of this extension.
 
 ## Install
 

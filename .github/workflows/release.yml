@@ -90,4 +90,5 @@ jobs:
             kogentic-plan-review-*.vsix
             SHA256SUMS.txt
           fail_on_unmatched_files: true
-          generate_release_notes: true
+          # The body is only the notes file; no auto-generated notes are appended.
+          generate_release_notes: false

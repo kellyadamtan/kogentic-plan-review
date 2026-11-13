@@ -134,6 +134,9 @@ describe('file extraction', () => {
     const md = 'Edit `src/a.ts:12` and lib/b.go. See https://x.com/a/b.html and run `npm test`. Bump 1.2.3. Use `foo()`.';
     expect(extractFiles(md)).toEqual(['lib/b.go', 'src/a.ts']);
   });
+  it('ignores paths inside fenced code blocks', () => {
+    expect(extractFiles('Edit `src/a.ts`.\n\n```sh\nrm src/old/file.ts\ncat `src/b.ts`\n```\n\n~~~\nlib/c.go\n~~~\nThen lib/d.go')).toEqual(['lib/d.go', 'src/a.ts']);
+  });
   it('accepts known files and folders', () => {
     expect(extractFiles('Change `Dockerfile`, `.env.local` and `src/components/`.')).toEqual(['.env.local', 'Dockerfile', 'src/components/']);
   });

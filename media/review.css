@@ -22,7 +22,6 @@ a { color: var(--vscode-textLink-foreground); }
 .kpr-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; }
 @media (max-width: 800px) { .kpr-layout { grid-template-columns: 1fr; } }
 .kpr-side { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; }
-.kpr-banner { background: var(--kpr-accent); color: var(--kpr-ink); font-weight: 600; padding: 8px 12px; margin: 12px 0 0; border-radius: 4px; }
 .kpr-badge { border: 1px solid var(--kpr-accent); color: var(--kpr-accent); border-radius: 10px; padding: 0 8px; font-size: 0.85em; }
 .kpr-status { font-weight: 600; }
 .kpr-s-approved, .kpr-s-done { color: var(--vscode-foreground); }

@@ -1,15 +1,13 @@
-import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { appendApproval, approvalRecord } from './core/approvals';
+import { safeRead, safeWrite } from './core/safeFs';
 import { withSidecarIgnore } from './core/gitignore';
 import { loadErrorSummary } from './core/load';
-import { withPlanFirstRule } from './core/planFirstRule';
-import { feedbackText, ReviewStore, type Review, type Status } from './core/review';
+import { ReviewStore, type Review, type Status } from './core/review';
 import { reviewMarkdown } from './core/reviewHtml';
 import { cfg } from './vscode/config';
 import { isConnectorOn, sendToKogentic, signIn, signOut, type SendOutcome } from './vscode/connectorCommands';
-import { GateController, PREVIEW_SCHEME, PreviewProvider } from './vscode/gateController';
 import { reviewerName } from './vscode/git';
 import { PlanRepository, type PlanEntry } from './vscode/planRepository';
 import { ReviewPanels, type DecideAction } from './vscode/reviewPanel';
@@ -22,14 +20,12 @@ export interface ExtensionApi {
   review(id: string): Review | undefined;
   overlaps(id: string): { otherId: string; otherTitle: string; files: string[] }[];
   refresh(): Promise<void>;
-  gate: {
-    info(): { running: boolean; port?: number; address?: string; url?: string; token?: string };
-    /** Starts the server without touching settings files (tests only). */
-    start(): Promise<void>;
-    stop(): Promise<void>;
-    isWaiting(id: string): boolean;
-  };
   connectorEnabled(): boolean;
+}
+
+/** Test-only switches: needs both the test runner's extension mode and an explicit env var. */
+export function isTestRun(ctx: vscode.ExtensionContext): boolean {
+  return ctx.extensionMode === vscode.ExtensionMode.Test && process.env.KOGENTIC_PLAN_REVIEW_TEST === '1';
 }
 
 const ACTION_STATUS: Record<DecideAction, Status> = {
@@ -46,25 +42,17 @@ function rootDir(): string | undefined {
 
 export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionApi> {
   const root = rootDir();
-  const store = new ReviewStore(root ? path.join(root, '.kogentic', 'reviews') : path.join(ctx.globalStorageUri.fsPath, 'reviews'));
+  const store = root ? new ReviewStore(path.join(root, '.kogentic', 'reviews'), root) : new ReviewStore(path.join(ctx.globalStorageUri.fsPath, 'reviews'), ctx.globalStorageUri.fsPath);
   const repo = new PlanRepository(store, () => reviewerName(root));
-  const preview = new PreviewProvider();
-  const holder: { panels?: ReviewPanels } = {};
-  const gate = new GateController(ctx, repo, preview, (id) => holder.panels?.show(id));
-
+  /**
+   * Records a review mark locally (panel status and the .kogentic/ sidecar).
+   * Nothing is sent to any agent.
+   */
   async function decide(id: string, action: DecideAction, reason?: string): Promise<void> {
     const status = ACTION_STATUS[action];
-    if ((status === 'changes_requested' || status === 'rejected') && !reason && gate.isWaiting(id) && (repo.get(id)?.review.comments.length ?? 0) === 0) {
-      reason = await vscode.window.showInputBox({ title: status === 'rejected' ? 'Why reject this plan?' : 'What should change?', prompt: 'Sent to Claude Code as the reason.', ignoreFocusOut: true });
-      if (reason === undefined) return;
-    }
     const e = await repo.decide(id, status, reason);
-    if (status === 'approved') {
-      gate.resolve(id, { allow: true, reason: 'Approved in Kogentic Plan Review.' });
-      if (root && cfg().get<boolean>('recordApprovals', false)) await appendApproval(root, approvalRecord(e.review, e.plan.title, e.checklist));
-    } else if (status === 'changes_requested' || status === 'rejected') {
-      const header = status === 'rejected' ? 'The plan was rejected in Kogentic Plan Review.' : 'Changes were requested in Kogentic Plan Review. Revise the plan:';
-      gate.resolve(id, { allow: false, reason: feedbackText(e.review, header) });
+    if (status === 'approved' && root && cfg().get<boolean>('recordApprovals', false)) {
+      await appendApproval(root, approvalRecord(e.review, e.plan.title, e.checklist));
     }
   }
 
@@ -79,11 +67,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
     decide,
     exportReview,
     send: async (id) => void (await sendToKogentic(ctx.secrets, repo, id)),
-    isGateWaiting: (id) => gate.isWaiting(id),
     connectorEnabled: isConnectorOn,
   });
-  holder.panels = panels;
-  gate.onDidChange(() => repo.notify());
 
   const tree = new PlanTree(repo);
   const view = vscode.window.createTreeView('kogenticPlanReview.plans', { treeDataProvider: tree, showCollapseAll: true });
@@ -95,8 +80,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
   repo.onDidChange(() => {
     const n = repo.pendingCount();
     status.text = `$(checklist) ${n}`;
-    status.tooltip = `Kogentic Plan Review: ${n} plan${n === 1 ? '' : 's'} waiting for review${gate.running ? ' · Claude Code gate on' : ''}`;
-    if (n > 0 || gate.running) status.show();
+    status.tooltip = `Kogentic Plan Review: ${n} plan${n === 1 ? '' : 's'} waiting for review`;
+    if (n > 0) status.show();
     else status.hide();
     view.badge = n ? { value: n, tooltip: `${n} pending` } : undefined;
     lensEmitter.fire();
@@ -155,54 +140,16 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
   reg('requestChanges', decideCmd('requestChanges'));
   reg('reject', decideCmd('reject'));
   reg('markDone', decideCmd('markDone'));
-  reg('enableClaudeGate', run(() => gate.enable()));
-  reg('disableClaudeGate', run(() => gate.disable()));
-  reg('copyGateToken', run(async () => {
-    const t = gate.info().token;
-    if (!t) {
-      void vscode.window.showInformationMessage('The Claude Code gate is not running. Run "Enable blocking gate for Claude Code" first.');
-      return;
-    }
-    await vscode.env.clipboard.writeText(t);
-    void vscode.window.showInformationMessage(`Gate token copied. Set it as KOGENTIC_GATE_TOKEN where you start Claude Code outside VS Code terminals. It changes every VS Code session.`);
-  }));
-  reg('insertPlanFirstRule', run(async () => {
-    if (!root) throw new Error('Open a folder first.');
-    const choice = await vscode.window.showQuickPick(['AGENTS.md', '.clinerules'], { title: 'Add the plan-first rule to' });
-    if (!choice) return;
-    let file = path.join(root, choice);
-    try {
-      if ((await fs.stat(file)).isDirectory()) file = path.join(file, 'plan-first.md');
-    } catch {
-      // new file
-    }
-    let existing = '';
-    try {
-      existing = await fs.readFile(file, 'utf8');
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    }
-    const next = withPlanFirstRule(existing);
-    if (next !== undefined) await fs.writeFile(file, next, 'utf8');
-    await vscode.window.showTextDocument(vscode.Uri.file(file));
-    if (next === undefined) void vscode.window.showInformationMessage('The plan-first rule is already there.');
-  }));
-  reg('ignoreSidecars', run(async (opts) => {
+  reg('ignoreSidecars', run(async () => {
     if (!root) throw new Error('Open a folder first.');
     const file = path.join(root, '.gitignore');
-    let existing = '';
-    try {
-      existing = await fs.readFile(file, 'utf8');
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    }
-    const next = withSidecarIgnore(existing);
+    const next = withSidecarIgnore(await safeRead(root, file));
     if (next === undefined) {
       void vscode.window.showInformationMessage('.kogentic/ is already in .gitignore.');
       return 'unchanged';
     }
-    // Programmatic callers (tests) may pass { confirmed: true }; users always see the dialog.
-    const preConfirmed = !!opts && typeof opts === 'object' && (opts as { confirmed?: unknown }).confirmed === true;
+    // Only the integration tests can skip the dialog (see isTestRun).
+    const preConfirmed = isTestRun(ctx) && process.env.KOGENTIC_PLAN_REVIEW_TEST_CONFIRM === '1';
     if (!preConfirmed) {
       const ok = await vscode.window.showWarningMessage(
         'Add .kogentic/ to .gitignore? Reviews and the approval record will then stay out of git. They are meant to be committed if you want a shared audit trail.',
@@ -211,7 +158,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
       );
       if (ok !== 'Add to .gitignore') return 'cancelled';
     }
-    await fs.writeFile(file, next, 'utf8');
+    await safeWrite(root, file, next);
     return 'added';
   }));
   reg('showOverlaps', run(async () => {
@@ -238,12 +185,10 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
 
   ctx.subscriptions.push(
     repo,
-    gate,
     panels,
     view,
     status,
     lensEmitter,
-    vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, preview),
     vscode.languages.registerCodeLensProvider({ language: 'markdown' }, {
       onDidChangeCodeLenses: lensEmitter.event,
       provideCodeLenses(doc) {
@@ -265,7 +210,6 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
   );
 
   await repo.refresh();
-  await gate.startIfConfigured();
 
   return {
     plans: () => repo.all(),
@@ -273,11 +217,10 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
     review: (id) => repo.get(id)?.review,
     overlaps: (id) => repo.overlaps(id),
     refresh: () => repo.refresh(),
-    gate: { info: () => gate.info(), start: () => gate.start(), stop: () => gate.stop(), isWaiting: (id) => gate.isWaiting(id) },
     connectorEnabled: isConnectorOn,
   };
 }
 
 export function deactivate(): void {
-  // Disposables registered in activate() stop the gate server.
+  // Everything is disposed through ctx.subscriptions.
 }

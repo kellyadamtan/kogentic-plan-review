@@ -10,8 +10,6 @@ export interface ReviewView {
   review: Review;
   checklist: ChecklistResult;
   overlaps: Overlap[];
-  /** Claude Code is blocked on this plan through the gate. */
-  gateWaiting: boolean;
   connectorEnabled: boolean;
 }
 
@@ -119,13 +117,10 @@ export function renderReviewHtml(v: ReviewView, env: HtmlEnv): string {
   }</section>`;
 
   const actions = actionsFor(review.status);
-  const decide = `<section class="kpr-decide"><label for="kpr-reason">Note to the agent (sent with Request changes / Reject)</label><textarea id="kpr-reason" rows="3"></textarea><div class="kpr-actions">${actions
+  const decide = `<section class="kpr-decide"><label for="kpr-reason">Decision note (saved with the review in .kogentic/; not sent to the agent)</label><textarea id="kpr-reason" rows="3"></textarea><div class="kpr-actions">${actions
     .map((a) => button(a, ACTION_LABEL[a], a === 'approve'))
     .join('')}${button('export', 'Copy review as markdown')}${v.connectorEnabled ? button('send', 'Send to Kogentic…') : ''}</div></section>`;
 
-  const gate = v.gateWaiting
-    ? '<div class="kpr-banner" role="status">Claude Code is waiting for your decision on this plan.</div>'
-    : '';
   const meta = `<span class="kpr-badge">${e(AGENT_LABEL[plan.agent])}</span> <span class="kpr-status kpr-s-${review.status}">${e(STATUS_LABEL[review.status])}</span>${
     review.decidedBy ? ` <span class="kpr-muted">by ${e(review.decidedBy)}</span>` : ''
   }`;
@@ -140,7 +135,6 @@ export function renderReviewHtml(v: ReviewView, env: HtmlEnv): string {
 <title>${e(plan.title)}</title>
 </head>
 <body data-hash="${e(plan.hash)}">
-${gate}
 <header><h1>${e(plan.title)}</h1><div class="kpr-meta">${meta}</div><div class="kpr-path kpr-muted">${e(plan.path)}</div>${plan.overview ? `<p class="kpr-overview">${e(plan.overview)}</p>` : ''}</header>
 <main class="kpr-layout">
 <article class="kpr-plan">${todos}${renderPlanMarkdown(plan.body, plan.bodyStartLine)}</article>
@@ -152,7 +146,7 @@ ${gate}
 }
 
 /** Markdown summary of a review (exportReview). */
-export function reviewMarkdown(v: Omit<ReviewView, 'gateWaiting' | 'connectorEnabled'>): string {
+export function reviewMarkdown(v: Omit<ReviewView, 'connectorEnabled'>): string {
   const { plan, review, checklist, overlaps } = v;
   const lines = [
     `## Plan review: ${plan.title}`,

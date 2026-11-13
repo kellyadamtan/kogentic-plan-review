@@ -4,8 +4,8 @@ import * as esbuild from 'esbuild';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Offline guard: the extension has no telemetry and makes no network calls
- * except (1) the gate server bound to 127.0.0.1 and (2) the opt-in connector.
+ * Offline guard: the extension has no telemetry, listens on no port and makes
+ * no network calls except through the opt-in connector.
  * This checks the whole bundle, dependencies included, plus the webview script.
  */
 const ROOT = join(__dirname, '..', '..');
@@ -25,7 +25,6 @@ const ALLOWED: Record<string, string[]> = {
   'node:path': ['*'],
   'node:os': ['*'],
   'node:crypto': ['*'],
-  'node:http': ['src/gate/server.ts'],
   'node:child_process': ['src/vscode/git.ts'],
 };
 
@@ -52,17 +51,17 @@ describe('offline guard', () => {
         expect(allowed.includes('*') || allowed.includes(input), `${input} may not import ${imp.path}`).toBe(true);
       }
     }
-    expect(used).toContain('node:http <- src/gate/server.ts');
+    expect(used.some((u) => /^node:(http|https|net|tls|dgram|dns|http2) /.test(u))).toBe(false);
   });
 
-  it('only the connector calls fetch, and nothing uses other network APIs', () => {
+  it('only the connector calls fetch, and nothing listens or uses other network APIs', () => {
     const src = [...files(join(ROOT, 'src'), /\.ts$/), ...files(join(ROOT, 'media'), /\.js$/)];
     for (const f of src) {
       const rel = relative(ROOT, f).replace(/\\/g, '/');
       const text = readFileSync(f, 'utf8');
       if (rel !== 'src/core/connector.ts') expect(/\bfetch\b/.test(text), `${rel} uses fetch`).toBe(false);
       expect(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|navigator\.|\bimport\s*\(/.test(text), `${rel} uses a network API or dynamic import`).toBe(false);
-      expect(/\b(https?|net|tls|dgram|dns|http2)\.(request|get|connect|createConnection|lookup)\b/.test(text) && rel !== 'src/gate/server.ts', `${rel} opens connections`).toBe(false);
+      expect(/\b(https?|net|tls|dgram|dns|http2)\.(request|get|connect|createConnection|lookup|createServer)\b|\.listen\(/.test(text), `${rel} opens or accepts connections`).toBe(false);
     }
   });
 

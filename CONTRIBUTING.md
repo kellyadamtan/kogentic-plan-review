@@ -27,11 +27,10 @@ npm run package && node scripts/check-vsix.mjs kogentic-plan-review-*.vsix
 | Path | What |
 |---|---|
 | `src/core/` | Pure logic, no `vscode` import: plan parser, checklist, overlaps, review state, connector, webview HTML. Unit tested with vitest. |
-| `src/gate/` | The Claude Code gate server and hook config. |
 | `src/vscode/` | VS Code glue: plan discovery, tree, review panel, commands. |
 | `media/` | Webview script and styles, icons. |
 | `test/unit/` | vitest tests. Local servers in tests use ports 4800-4819. |
-| `test/integration/` | `@vscode/test-electron` tests against a fixture workspace (ports 4820-4839). |
+| `test/integration/` | `@vscode/test-electron` tests against a fixture workspace. |
 
 Keep `src/core/` free of `vscode` imports so the parser and checklist can be reused elsewhere.
 
@@ -44,7 +43,8 @@ Keep `src/core/` free of `vscode` imports so the parser and checklist can be reu
 ## Rules
 
 - No telemetry and no network calls. `test/unit/offline.test.ts` enforces this; if you need an exception, explain why in the PR.
-- The gate must stay bound to `127.0.0.1` and token-protected. Changes to `src/gate/` need tests.
+- Reviews stay local: the extension doesn't listen on a port or send anything to a coding agent.
+- Workspace writes go through `src/core/safeFs.ts` (no symlinks, nothing outside the folder).
 - Pin new GitHub Actions to a full commit SHA.
 - Brand colours are `#c6613f` and black.
 

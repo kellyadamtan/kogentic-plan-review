@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { appendApproval, approvalRecord } from '../../src/core/approvals';
-import { addComment, decide, deleteComment, feedbackText, isOpen, newReview, reconcile, ReviewStore, Status, STATUSES, TransitionError, TRANSITIONS } from '../../src/core/review';
+import { addComment, decide, deleteComment, isOpen, newReview, reconcile, ReviewStore, Status, STATUSES, TransitionError, TRANSITIONS } from '../../src/core/review';
 
 const ID = 'abcdef0123456789';
 const fresh = () => newReview(ID, '/r/PLAN.md', 'h1');
@@ -55,14 +55,12 @@ describe('review state', () => {
     expect(d.status).toBe('done');
     expect(d.decidedBy).toBe('me');
   });
-  it('adds and removes comments and builds feedback', () => {
+  it('adds and removes comments', () => {
     let r = addComment(fresh(), 5, 'line five', ' fix this ');
     r = addComment(r, 2, '', 'and this');
     expect(r.comments.map((c) => c.text)).toEqual(['fix this', 'and this']);
     expect(() => addComment(r, 1, '', '   ')).toThrow();
     expect(addComment(fresh(), 0.4, '', 'x').comments[0].line).toBe(1);
-    r = { ...r, reason: 'Please revise.' };
-    expect(feedbackText(r, 'Changes requested:')).toBe('Changes requested:\nPlease revise.\n- Line 2: and this\n- Line 5 ("line five"): fix this');
     expect(deleteComment(r, r.comments[0].id).comments).toHaveLength(1);
   });
 });

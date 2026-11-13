@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { buildChecklist, type ChecklistResult } from '../core/checklist';
 import { readPlanFiles, type LoadError } from '../core/load';
 import { computeOverlaps, type Overlap } from '../core/overlap';
-import { parsePlan, type Agent, type Plan } from '../core/plan';
+import { parsePlan, type Plan } from '../core/plan';
 import { addComment, decide, deleteComment, isOpen, ReviewStore, type Review, type Status } from '../core/review';
 import { cfg, planGlobs } from './config';
 
@@ -13,9 +13,8 @@ export interface PlanEntry {
   plan: Plan;
   review: Review;
   checklist: ChecklistResult;
-  /** File URI, or undefined for a plan that only arrived through the gate. */
-  uri?: vscode.Uri;
-  source: 'workspace' | 'global' | 'gate';
+  uri: vscode.Uri;
+  source: 'workspace' | 'global';
 }
 
 const GLOBAL_LIMIT = 50;
@@ -128,8 +127,8 @@ export class PlanRepository implements vscode.Disposable {
     return false;
   };
 
-  private async entryFor(text: string, p: string, source: PlanEntry['source'], uri?: vscode.Uri, agent?: Agent): Promise<PlanEntry> {
-    const plan = parsePlan(text, p, { agent, claudePlanDirs: this.claudeDirs.map((d) => d.replace(/\\/g, '/')) });
+  private async entryFor(text: string, p: string, source: PlanEntry['source'], uri: vscode.Uri): Promise<PlanEntry> {
+    const plan = parsePlan(text, p, { claudePlanDirs: this.claudeDirs.map((d) => d.replace(/\\/g, '/')) });
     const review = await this.store.load(plan.id, plan.path, plan.hash);
     return { plan, review, checklist: buildChecklist(plan, this.exists), uri, source };
   }
@@ -179,9 +178,6 @@ export class PlanRepository implements vscode.Disposable {
       next.set(e.plan.id, e);
     }
     this.loadErrors = errors;
-    for (const e of this.entries.values()) {
-      if (e.source === 'gate' && !next.has(e.plan.id)) next.set(e.plan.id, e);
-    }
     this.entries = next;
     this.resetWatchers(folders, globs);
     this.recompute();
@@ -212,20 +208,6 @@ export class PlanRepository implements vscode.Disposable {
   scheduleRefresh(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.refresh(), 300);
-  }
-
-  /** Adds a plan received by the Claude Code gate (text as sent by Claude). */
-  async addGatePlan(text: string, planFilePath: string | undefined, sessionId: string | undefined): Promise<PlanEntry> {
-    const p = planFilePath ?? `claude-gate:/${(sessionId ?? 'session').replace(/[^\w-]/g, '')}.md`;
-    const uri = planFilePath && existsSync(planFilePath) ? vscode.Uri.file(planFilePath) : undefined;
-    const e = await this.entryFor(text, p, uri ? (this.entries.get(this.idOf(p))?.source ?? 'gate') : 'gate', uri, 'claude-code');
-    this.entries.set(e.plan.id, e);
-    this.recompute();
-    return e;
-  }
-
-  private idOf(p: string): string {
-    return parsePlan('', p).id;
   }
 
   private async update(id: string, f: (r: Review, e: PlanEntry) => Review | Promise<Review>): Promise<PlanEntry> {

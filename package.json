@@ -1,7 +1,7 @@
 {
   "name": "kogentic-plan-review",
   "displayName": "Kogentic Plan Review",
-  "description": "Review, comment on and approve any coding agent's plan before code changes: Claude Code, Cursor, Copilot and PLAN.md. Risk checklist, overlap warnings and a real blocking gate for Claude Code.",
+  "description": "Review, comment on and approve any coding agent's plan locally before code changes: Claude Code, Cursor, Copilot and PLAN.md. Risk checklist and overlap warnings.",
   "version": "0.1.0",
   "publisher": "kogentic",
   "license": "MIT",
@@ -91,26 +91,6 @@
         "category": "Kogentic"
       },
       {
-        "command": "kogenticPlanReview.enableClaudeGate",
-        "title": "Enable Blocking Gate for Claude Code",
-        "category": "Kogentic"
-      },
-      {
-        "command": "kogenticPlanReview.disableClaudeGate",
-        "title": "Disable Blocking Gate for Claude Code",
-        "category": "Kogentic"
-      },
-      {
-        "command": "kogenticPlanReview.copyGateToken",
-        "title": "Copy Claude Code Gate Token",
-        "category": "Kogentic"
-      },
-      {
-        "command": "kogenticPlanReview.insertPlanFirstRule",
-        "title": "Insert Plan-First Rule",
-        "category": "Kogentic"
-      },
-      {
         "command": "kogenticPlanReview.ignoreSidecars",
         "title": "Add .kogentic/ to .gitignore",
         "category": "Kogentic"
@@ -194,7 +174,8 @@
             "PLAN.md",
             "plans/**/*.md",
             "docs/plans/**/*.md",
-            ".cursor/plans/**/*.plan.md"
+            ".cursor/plans/**/*.plan.md",
+            ".github/plans/**/*.md"
           ],
           "description": "Workspace globs to watch for plan files."
         },
@@ -206,25 +187,13 @@
         "kogenticPlanReview.recordApprovals": {
           "type": "boolean",
           "default": false,
-          "description": "Append each decision to .kogentic/approvals.jsonl in the workspace."
-        },
-        "kogenticPlanReview.gate.port": {
-          "type": "integer",
-          "default": 4815,
-          "minimum": 1024,
-          "maximum": 65535,
-          "description": "Port for the local Claude Code gate server. It always binds to 127.0.0.1 only."
-        },
-        "kogenticPlanReview.gate.timeoutSeconds": {
-          "type": "integer",
-          "default": 3600,
-          "minimum": 30,
-          "description": "How long the gate holds a Claude Code request waiting for your decision. On timeout the plan is denied."
+          "scope": "machine",
+          "description": "Append each Approve to .kogentic/approvals.jsonl in the workspace. Machine-scoped, so a workspace cannot turn it on for you."
         },
         "kogenticPlanReview.kogentic.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Opt in to the optional Kogentic connector (send a plan for team approval). Off by default. Nothing is sent unless you run the command and confirm.",
+          "description": "Opt in to the optional Kogentic connector (send a plan to your Kogentic workspace). Off by default. Nothing is sent unless you run the command and confirm.",
           "scope": "machine"
         },
         "kogenticPlanReview.kogentic.baseUrl": {

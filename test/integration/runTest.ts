@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   mkdirSync(path.join(ws, '.vscode'), { recursive: true });
   writeFileSync(
     path.join(ws, '.vscode', 'settings.json'),
-    JSON.stringify({ 'kogenticPlanReview.includeGlobalPlans': false, 'kogenticPlanReview.gate.port': 4820, 'kogenticPlanReview.gate.timeoutSeconds': 30 }, null, 2),
+    JSON.stringify({ 'kogenticPlanReview.includeGlobalPlans': false }, null, 2),
   );
   // A plan file nobody can read: it must show up as an error, not vanish.
   const locked = path.join(ws, 'plans', 'locked.md');
@@ -30,7 +30,8 @@ async function main(): Promise<void> {
       cachePath: path.join(repo, '.vscode-test'),
       extensionDevelopmentPath: repo,
       extensionTestsPath: path.join(__dirname, 'suite', 'index.js'),
-      extensionTestsEnv: { KPR_WS: ws, KPR_UNREADABLE: canTestUnreadable ? '1' : '0' },
+      // KOGENTIC_PLAN_REVIEW_TEST* only take effect in the test runner's extension mode (see isTestRun).
+      extensionTestsEnv: { KPR_WS: ws, KPR_UNREADABLE: canTestUnreadable ? '1' : '0', KOGENTIC_PLAN_REVIEW_TEST: '1', KOGENTIC_PLAN_REVIEW_TEST_CONFIRM: '1' },
       launchArgs: [ws, '--disable-extensions', '--disable-workspace-trust', '--skip-welcome', '--skip-release-notes', '--disable-telemetry', '--user-data-dir', path.join(work, 'user-data')],
     });
   } finally {

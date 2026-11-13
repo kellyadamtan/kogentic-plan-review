@@ -24,14 +24,14 @@ describe('review HTML', () => {
     const plan = parsePlan('---\nname: "<b>x</b>"\ntodos:\n  - content: t1\n    status: completed\n---\n# T\n- `src/a.ts`\n', '/r/x.plan.md');
     let review = newReview(plan.id, plan.path, plan.hash);
     review = addComment(review, 3, 'ex', '<i>c</i>');
-    const html = renderReviewHtml({ plan, review, checklist: buildChecklist(plan, () => true), overlaps: [{ otherId: 'o', otherTitle: 'Other', files: ['src/a.ts'] }], gateWaiting: true, connectorEnabled: false }, env);
+    const html = renderReviewHtml({ plan, review, checklist: buildChecklist(plan, () => true), overlaps: [{ otherId: 'o', otherTitle: 'Other', files: ['src/a.ts'] }], connectorEnabled: false }, env);
     expect(html).toContain("default-src 'none'");
     expect(html).toContain("script-src 'nonce-N0NCE'");
     expect(html).not.toMatch(/unsafe-inline|unsafe-eval|https:/);
     expect(html).toContain('<script nonce="N0NCE" src="res/review.js">');
     expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
     expect(html).toContain('&lt;i&gt;c&lt;/i&gt;');
-    expect(html).toContain('Claude Code is waiting');
+    expect(html).not.toContain('waiting for your decision');
     expect(html).toContain('Overlapping plans');
     expect(html).toContain('kpr-todo-completed');
     expect(html).not.toContain('Send to Kogentic');
@@ -40,9 +40,8 @@ describe('review HTML', () => {
   it('shows the send button only when the connector is enabled', () => {
     const plan = parsePlan('# T', '/r/PLAN.md');
     const review = newReview(plan.id, plan.path, plan.hash);
-    const html = renderReviewHtml({ plan, review, checklist: buildChecklist(plan, () => true), overlaps: [], gateWaiting: false, connectorEnabled: true }, env);
+    const html = renderReviewHtml({ plan, review, checklist: buildChecklist(plan, () => true), overlaps: [], connectorEnabled: true }, env);
     expect(html).toContain('Send to Kogentic');
-    expect(html).not.toContain('Claude Code is waiting');
   });
   it('offers only valid actions', () => {
     expect(actionsFor('pending')).toEqual(['approve', 'requestChanges', 'reject']);

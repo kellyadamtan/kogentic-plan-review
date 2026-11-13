@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { assertSafeTarget, safeWrite } from './safeFs';
 
 export type Status = 'pending' | 'approved' | 'changes_requested' | 'rejected' | 'done';
 export const STATUSES: readonly Status[] = ['pending', 'approved', 'changes_requested', 'rejected', 'done'];
@@ -97,17 +98,6 @@ export function deleteComment(r: Review, id: string): Review {
   return { ...r, comments: r.comments.filter((c) => c.id !== id) };
 }
 
-/** Combined feedback for "Request changes" / "Reject", sent back to the agent. */
-export function feedbackText(r: Review, header?: string): string {
-  const parts: string[] = [];
-  if (header) parts.push(header);
-  if (r.reason) parts.push(r.reason);
-  for (const c of [...r.comments].sort((a, b) => a.line - b.line)) {
-    parts.push(`- Line ${c.line}${c.excerpt ? ` ("${c.excerpt}")` : ''}: ${c.text}`);
-  }
-  return parts.join('\n');
-}
-
 function isReview(v: unknown): v is Review {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
@@ -117,7 +107,8 @@ function isReview(v: unknown): v is Review {
 
 /** Stores reviews as sidecar JSON files, so plan files are never modified. */
 export class ReviewStore {
-  constructor(private readonly dir: string) {}
+  /** root: the folder writes must stay inside (the workspace folder, or the extension's storage). */
+  constructor(private readonly dir: string, private readonly root: string = path.dirname(dir)) {}
 
   file(planId: string): string {
     if (!/^[a-f0-9]{8,64}$/.test(planId)) throw new Error(`invalid plan id ${planId}`);
@@ -135,9 +126,9 @@ export class ReviewStore {
   }
 
   async save(r: Review): Promise<void> {
-    await fs.mkdir(this.dir, { recursive: true });
     const tmp = this.file(r.planId) + '.tmp';
-    await fs.writeFile(tmp, JSON.stringify(r, null, 2) + '\n', 'utf8');
+    await safeWrite(this.root, tmp, JSON.stringify(r, null, 2) + '\n');
+    await assertSafeTarget(this.root, this.file(r.planId));
     await fs.rename(tmp, this.file(r.planId));
   }
 }

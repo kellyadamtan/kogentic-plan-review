@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
+import { checkPanelMessage } from '../core/panelMessage';
 import { renderReviewHtml } from '../core/reviewHtml';
 import type { PlanRepository } from './planRepository';
 
@@ -9,22 +10,8 @@ export interface PanelHost {
   decide(id: string, action: DecideAction, reason?: string): Promise<void>;
   exportReview(id: string): Promise<void>;
   send(id: string): Promise<void>;
-  isGateWaiting(id: string): boolean;
   connectorEnabled(): boolean;
 }
-
-interface Msg {
-  type?: string;
-  hash?: string;
-  action?: string;
-  reason?: string;
-  line?: number;
-  excerpt?: string;
-  text?: string;
-  id?: string;
-}
-
-const ACTIONS = new Set(['approve', 'requestChanges', 'reject', 'markDone', 'reopen']);
 
 /** One webview panel per plan. */
 export class ReviewPanels implements vscode.Disposable {
@@ -67,7 +54,7 @@ export class ReviewPanels implements vscode.Disposable {
     p.iconPath = vscode.Uri.joinPath(media, 'icon.png');
     this.panels.set(id, p);
     p.onDidDispose(() => this.panels.delete(id));
-    p.webview.onDidReceiveMessage((m: Msg) => void this.onMessage(id, m));
+    p.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(id, m));
     this.render(id);
   }
 
@@ -86,7 +73,7 @@ export class ReviewPanels implements vscode.Disposable {
     const media = vscode.Uri.joinPath(this.extUri, 'media');
     p.title = `Review: ${e.plan.title}`;
     p.webview.html = renderReviewHtml(
-      { plan: e.plan, review: e.review, checklist: e.checklist, overlaps: this.repo.overlaps(id), gateWaiting: this.host.isGateWaiting(id), connectorEnabled: this.host.connectorEnabled() },
+      { plan: e.plan, review: e.review, checklist: e.checklist, overlaps: this.repo.overlaps(id), connectorEnabled: this.host.connectorEnabled() },
       {
         nonce: randomBytes(16).toString('base64'),
         cspSource: p.webview.cspSource,
@@ -96,27 +83,31 @@ export class ReviewPanels implements vscode.Disposable {
     );
   }
 
-  private async onMessage(id: string, m: Msg): Promise<void> {
+  private async onMessage(id: string, m: unknown): Promise<void> {
     const e = this.repo.get(id);
     if (!e) return;
     try {
-      if (m.hash !== e.plan.hash) {
-        void vscode.window.showWarningMessage('The plan changed while the review was open. It has been reloaded; please review it again.');
-        this.render(id);
+      const c = checkPanelMessage(m, e.plan.hash);
+      if (!c.ok) {
+        if (c.why === 'stale') {
+          void vscode.window.showWarningMessage('The plan changed while the review was open. It has been reloaded; please review it again.');
+          this.render(id);
+        }
         return;
       }
-      switch (m.type) {
+      const cmd = c.cmd;
+      switch (cmd.type) {
         case 'decide':
-          if (typeof m.action === 'string' && ACTIONS.has(m.action)) await this.host.decide(id, m.action as DecideAction, typeof m.reason === 'string' ? m.reason.slice(0, 5000) : undefined);
+          await this.host.decide(id, cmd.action, cmd.reason);
           break;
         case 'comment':
-          if (typeof m.text === 'string' && typeof m.line === 'number') await this.repo.comment(id, m.line, typeof m.excerpt === 'string' ? m.excerpt : '', m.text.slice(0, 5000));
+          await this.repo.comment(id, cmd.line, cmd.excerpt, cmd.text);
           break;
         case 'deleteComment':
-          if (typeof m.id === 'string') await this.repo.deleteComment(id, m.id);
+          await this.repo.deleteComment(id, cmd.id);
           break;
         case 'openPlan':
-          if (typeof m.id === 'string' && this.repo.get(m.id)) this.show(m.id);
+          if (this.repo.get(cmd.id)) this.show(cmd.id);
           break;
         case 'export':
           await this.host.exportReview(id);

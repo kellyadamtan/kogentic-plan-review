@@ -1,6 +1,5 @@
 import * as assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
-import * as http from 'node:http';
+import { existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
@@ -10,7 +9,6 @@ interface Api {
   review(id: string): { status: string; comments: unknown[] } | undefined;
   overlaps(id: string): { otherId: string; otherTitle: string; files: string[] }[];
   refresh(): Promise<void>;
-  gate: { info(): { running: boolean; port?: number; address?: string; url?: string; token?: string }; start(): Promise<void>; stop(): Promise<void>; isWaiting(id: string): boolean };
   connectorEnabled(): boolean;
 }
 
@@ -23,37 +21,11 @@ async function api(): Promise<Api> {
   return ext.isActive ? ext.exports : await ext.activate();
 }
 
-function post(url: string, token: string | undefined, body: unknown): Promise<{ status: number; json: unknown }> {
-  const u = new URL(url);
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const headers: Record<string, string> = { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(data)) };
-    if (token) headers['x-kogentic-gate-token'] = token;
-    const req = http.request({ host: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers }, (res) => {
-      let b = '';
-      res.on('data', (c) => (b += c));
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, json: b ? JSON.parse(b) : undefined }));
-    });
-    req.on('error', reject);
-    req.end(data);
-  });
-}
-
-async function until<T>(f: () => T | undefined, ms = 10000): Promise<T> {
-  const end = Date.now() + ms;
-  for (;;) {
-    const v = f();
-    if (v) return v;
-    if (Date.now() > end) throw new Error('timed out waiting');
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
-
 suite('Kogentic Plan Review', () => {
   test('activates and registers its commands', async () => {
     await api();
     const cmds = await vscode.commands.getCommands(true);
-    for (const c of ['openPlan', 'refresh', 'approve', 'requestChanges', 'reject', 'markDone', 'enableClaudeGate', 'disableClaudeGate', 'copyGateToken', 'insertPlanFirstRule', 'ignoreSidecars', 'showOverlaps', 'exportReview', 'signIn', 'signOut', 'sendToKogentic']) {
+    for (const c of ['openPlan', 'refresh', 'approve', 'requestChanges', 'reject', 'markDone', 'ignoreSidecars', 'showOverlaps', 'exportReview', 'signIn', 'signOut', 'sendToKogentic']) {
       assert.ok(cmds.includes(`kogenticPlanReview.${c}`), c);
     }
   });
@@ -111,10 +83,10 @@ suite('Kogentic Plan Review', () => {
 
   test('adds .kogentic/ to .gitignore once', async () => {
     const gi = path.join(WS, '.gitignore');
-    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars', { confirmed: true }), 'added');
+    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars'), 'added');
     const once = readFileSync(gi, 'utf8');
     assert.match(once, /^\.kogentic\/$/m);
-    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars', { confirmed: true }), 'unchanged');
+    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars'), 'unchanged');
     assert.equal(readFileSync(gi, 'utf8'), once);
   });
 
@@ -126,29 +98,21 @@ suite('Kogentic Plan Review', () => {
     assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.sendToKogentic'), 'disabled');
   });
 
-  test('gate is off until enabled, then binds 127.0.0.1 and needs the token', async () => {
-    const a = await api();
-    assert.equal(a.gate.info().running, false);
-    await a.gate.start();
-    const info = a.gate.info();
-    assert.equal(info.running, true);
-    assert.equal(info.address, '127.0.0.1');
-    assert.equal(info.url, 'http://127.0.0.1:4820/claude/exit-plan');
-    assert.match(info.token ?? '', /^[0-9a-f]{64}$/);
-    const body = { hook_event_name: 'PermissionRequest', tool_name: 'ExitPlanMode', session_id: 'it', tool_input: { plan: '# Gate plan\n\n1. Edit `src/gate.ts`\n2. Add tests\n' } };
-    const noToken = await post(info.url!, undefined, body);
-    assert.equal(noToken.status, 401);
-    const wrong = await post(info.url!, 'f'.repeat(64), body);
-    assert.equal(wrong.status, 401);
+  test('refuses to write .gitignore through a symlink', async () => {
+    const gi = path.join(WS, '.gitignore');
+    const outside = path.join(path.dirname(WS), 'outside-gitignore');
+    writeFileSync(outside, 'node_modules/\n');
+    rmSync(gi);
+    symlinkSync(outside, gi);
+    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars'), undefined);
+    assert.equal(readFileSync(outside, 'utf8'), 'node_modules/\n');
+    rmSync(gi);
+  });
 
-    const pending = post(info.url!, info.token, body);
-    const entry = await until(() => a.plans().find((p) => p.plan.title === 'Gate plan' && a.gate.isWaiting(p.plan.id)));
-    assert.equal(entry.plan.agent, 'claude-code');
-    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.approve', entry.plan.id), 'approved');
-    const res = await pending;
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.json, { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow', updatedInput: body.tool_input } } });
-    await a.gate.stop();
-    assert.equal(a.gate.info().running, false);
+  test('exports no gate or agent-facing API, and registers no gate commands', async () => {
+    const a = await api();
+    assert.deepEqual(Object.keys(a).sort(), ['connectorEnabled', 'loadErrors', 'overlaps', 'plans', 'refresh', 'review']);
+    const cmds = (await vscode.commands.getCommands(true)).filter((c) => c.startsWith('kogenticPlanReview.'));
+    assert.equal(cmds.some((c) => /gate|token|planfirst/i.test(c)), false);
   });
 });

@@ -1,6 +1,6 @@
-import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import type { ChecklistResult } from './checklist';
+import { safeWrite } from './safeFs';
 import type { Review } from './review';
 
 export interface ApprovalRecord {
@@ -30,7 +30,6 @@ export function approvalRecord(r: Review, title: string, checklist: ChecklistRes
 /** Appends one JSON line to <root>/.kogentic/approvals.jsonl. */
 export async function appendApproval(root: string, rec: ApprovalRecord): Promise<string> {
   const file = path.join(root, '.kogentic', 'approvals.jsonl');
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.appendFile(file, JSON.stringify(rec) + '\n', 'utf8');
+  await safeWrite(root, file, JSON.stringify(rec) + '\n', 'append');
   return file;
 }

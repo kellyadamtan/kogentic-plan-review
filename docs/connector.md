@@ -1,7 +1,7 @@
 # Optional Kogentic connector
 
-The connector lets you send one plan to a Kogentic workspace so a teammate can approve it from another
-device. It is **off by default** and inert until you opt in. The Kogentic API is not public yet; the
+The connector lets you send one plan, with its checklist summary, to your Kogentic workspace. It only
+sends; it never receives a decision or talks to an agent. It is **off by default** and inert until you opt in. The Kogentic API is not public yet; the
 client is built and tested against a local mock server.
 
 ## Turning it on

@@ -10,10 +10,10 @@ Useful details: the extension version, your editor and OS, and steps to reproduc
 
 ## Scope notes
 
-- The Claude Code gate listens on `127.0.0.1` only and requires a per-session random token in the
-  `x-kogentic-gate-token` header. Requests with an `Origin` header or an unexpected `Host` header are
-  refused. Anything that lets another machine, a web page or a request without the token reach the gate
-  is in scope. See "Security model of the gate" in the README.
+- The extension opens no listening socket and never talks to a coding agent.
+- Writes under `.kogentic/` and to `.gitignore` refuse symbolic links and paths outside the workspace.
+  Anything that makes the extension write outside the open folder is in scope.
+- The review panel runs with a strict Content Security Policy; a way to run script in it is in scope.
 - The extension makes no network calls except the opt-in "Send to Kogentic" command, which requires
   https (http only for localhost), never follows redirects, and asks before sending.
 - The API key for the connector is kept in VS Code SecretStorage.

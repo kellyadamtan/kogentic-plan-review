@@ -15,11 +15,12 @@ before starting so work isn't duplicated. Each item lists where to look.
 6. **Better parsing of Claude Code "Files to modify" sections.** Handle tables and nested lists.
    `extractFiles()` in `src/core/plan.ts`, tests in `test/unit/plan.test.ts`.
 7. **Empty-state walkthrough.** When no plans are found, show a welcome view explaining where plans come
-   from and how to enable the gate. `viewsWelcome` in `package.json`.
+   from and how to add a plan folder to `planGlobs`. `viewsWelcome` in `package.json`.
 
-## Larger items planned for v0.2
+## Larger items
 
-- A Copilot language-model tool so Copilot agent mode can ask for approval (a hard gate for Copilot).
-- A gate for Cursor through Cursor hooks.
+- Find Copilot plans saved in other locations (for example chat-session exports), with tests.
+- A side-by-side diff between two versions of the same plan.
 - Publishing to the VS Code Marketplace and Open VSX (needs a publisher account; not part of v0.1).
-- Polling a team decision from Kogentic (`GET /v1/plans/{id}/decision`).
+
+The extension is for local review: it doesn't block, pause or answer an agent, and proposals to add that won't be accepted here.

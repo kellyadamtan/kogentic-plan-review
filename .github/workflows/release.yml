@@ -1,0 +1,58 @@
+name: Release
+
+# Builds the .vsix and its SHA-256 checksum and attaches both to the GitHub
+# Release for the tag. There is deliberately no Marketplace or Open VSX
+# publish step and no publishing token.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24.22.1'
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the Release and upload assets
+      id-token: write # artifact attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Tag matches package.json version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          test "v${version}" = "${TAG}" || { echo "tag ${TAG} != package.json v${version}"; exit 1; }
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: xvfb-run -a npm run test:integration
+      - run: npm run package
+      - name: Checksum
+        run: |
+          sha256sum kogentic-plan-review-*.vsix > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          node scripts/check-vsix.mjs kogentic-plan-review-*.vsix
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: kogentic-plan-review-*.vsix
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          files: |
+            kogentic-plan-review-*.vsix
+            SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          generate_release_notes: true

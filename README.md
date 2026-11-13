@@ -97,6 +97,8 @@ Settings: `planGlobs`, `includeGlobalPlans`, `recordApprovals` (default off), `g
 > **Requires Claude Code v2.1.295 or later** (`claude --version`). The hook uses `onFailure: "block"`,
 > which older versions don't support; on those, Claude Code would carry on if the gate were down.
 > The exact hook entry below was checked with Claude Code 2.1.300, whose settings validation accepts it.
+>
+> Blocking gate validated against Claude Code 2.1.300's hook schema and a simulated ExitPlanMode request; live end-to-end run pending.
 
 Run **Kogentic: Enable Blocking Gate for Claude Code**. The extension shows the change to
 `.claude/settings.local.json` as a diff and writes it only after you confirm:
@@ -212,6 +214,11 @@ This is **off by default** and does nothing until you:
 There is no default URL. `https://` is required; `http://` is accepted only for `localhost`/`127.0.0.1`
 (for local testing). Redirects are never followed, so the key and the plan can only go to the URL you
 configured. See [docs/connector.md](docs/connector.md) for the payload. The Kogentic API is not public yet.
+
+## Known gaps
+
+- Blocking gate validated against Claude Code 2.1.300's hook schema and a simulated ExitPlanMode request; live end-to-end run pending. See [scripts/e2e-claude.md](scripts/e2e-claude.md) to run it yourself.
+- Copilot plans are reviewed, but there is no hard gate for Copilot yet (planned for v0.2).
 
 ## Development
 

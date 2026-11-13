@@ -25,6 +25,6 @@ export default tseslint.config(
   },
   {
     files: ['esbuild.mjs', 'scripts/**/*.mjs'],
-    languageOptions: { globals: { process: 'readonly', console: 'readonly' } },
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', URL: 'readonly' } },
   },
 );

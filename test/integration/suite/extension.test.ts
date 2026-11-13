@@ -53,7 +53,7 @@ suite('Kogentic Plan Review', () => {
   test('activates and registers its commands', async () => {
     await api();
     const cmds = await vscode.commands.getCommands(true);
-    for (const c of ['openPlan', 'refresh', 'approve', 'requestChanges', 'reject', 'markDone', 'enableClaudeGate', 'disableClaudeGate', 'copyGateToken', 'insertPlanFirstRule', 'showOverlaps', 'exportReview', 'signIn', 'signOut', 'sendToKogentic']) {
+    for (const c of ['openPlan', 'refresh', 'approve', 'requestChanges', 'reject', 'markDone', 'enableClaudeGate', 'disableClaudeGate', 'copyGateToken', 'insertPlanFirstRule', 'ignoreSidecars', 'showOverlaps', 'exportReview', 'signIn', 'signOut', 'sendToKogentic']) {
       assert.ok(cmds.includes(`kogenticPlanReview.${c}`), c);
     }
   });
@@ -107,6 +107,15 @@ suite('Kogentic Plan Review', () => {
     // rejected -> approved is not allowed; the command reports an error and leaves the state alone
     await vscode.commands.executeCommand('kogenticPlanReview.approve', p.plan.id);
     assert.equal(a.review(p.plan.id)?.status, 'rejected');
+  });
+
+  test('adds .kogentic/ to .gitignore once', async () => {
+    const gi = path.join(WS, '.gitignore');
+    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars', { confirmed: true }), 'added');
+    const once = readFileSync(gi, 'utf8');
+    assert.match(once, /^\.kogentic\/$/m);
+    assert.equal(await vscode.commands.executeCommand('kogenticPlanReview.ignoreSidecars', { confirmed: true }), 'unchanged');
+    assert.equal(readFileSync(gi, 'utf8'), once);
   });
 
   test('connector is off by default and refuses to send', async () => {

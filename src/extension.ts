@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { appendApproval, approvalRecord } from './core/approvals';
+import { withSidecarIgnore } from './core/gitignore';
 import { loadErrorSummary } from './core/load';
 import { withPlanFirstRule } from './core/planFirstRule';
 import { feedbackText, ReviewStore, type Review, type Status } from './core/review';
@@ -185,6 +186,33 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<ExtensionA
     if (next !== undefined) await fs.writeFile(file, next, 'utf8');
     await vscode.window.showTextDocument(vscode.Uri.file(file));
     if (next === undefined) void vscode.window.showInformationMessage('The plan-first rule is already there.');
+  }));
+  reg('ignoreSidecars', run(async (opts) => {
+    if (!root) throw new Error('Open a folder first.');
+    const file = path.join(root, '.gitignore');
+    let existing = '';
+    try {
+      existing = await fs.readFile(file, 'utf8');
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
+    const next = withSidecarIgnore(existing);
+    if (next === undefined) {
+      void vscode.window.showInformationMessage('.kogentic/ is already in .gitignore.');
+      return 'unchanged';
+    }
+    // Programmatic callers (tests) may pass { confirmed: true }; users always see the dialog.
+    const preConfirmed = !!opts && typeof opts === 'object' && (opts as { confirmed?: unknown }).confirmed === true;
+    if (!preConfirmed) {
+      const ok = await vscode.window.showWarningMessage(
+        'Add .kogentic/ to .gitignore? Reviews and the approval record will then stay out of git. They are meant to be committed if you want a shared audit trail.',
+        { modal: true },
+        'Add to .gitignore',
+      );
+      if (ok !== 'Add to .gitignore') return 'cancelled';
+    }
+    await fs.writeFile(file, next, 'utf8');
+    return 'added';
   }));
   reg('showOverlaps', run(async () => {
     const items = repo.all().flatMap((e) => repo.overlaps(e.plan.id).map((o) => ({ label: `${e.plan.title} ↔ ${o.otherTitle}`, detail: o.files.join(', '), id: e.plan.id })));

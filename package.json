@@ -111,6 +111,11 @@
         "category": "Kogentic"
       },
       {
+        "command": "kogenticPlanReview.ignoreSidecars",
+        "title": "Add .kogentic/ to .gitignore",
+        "category": "Kogentic"
+      },
+      {
         "command": "kogenticPlanReview.showOverlaps",
         "title": "Show Overlapping Plans",
         "category": "Kogentic"

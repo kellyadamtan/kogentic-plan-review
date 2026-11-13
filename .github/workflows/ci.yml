@@ -32,7 +32,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: node --version && npm --version
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: xvfb-run -a npm run test:integration
 
   package:
@@ -64,7 +64,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run package
       - name: Checksum and contents
         run: |

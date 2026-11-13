@@ -3,6 +3,11 @@ name: Release
 # Builds the .vsix and its SHA-256 checksum and attaches both to the GitHub
 # Release for the tag. There is deliberately no Marketplace or Open VSX
 # publish step and no publishing token.
+#
+# Two jobs: "build" installs dependencies (with install scripts disabled), tests
+# and packages with read-only permissions. "release" holds the write and
+# id-token permissions but runs no npm at all: it only attests and uploads the
+# files built in the first job. No dependency cache is used in either job.
 on:
   push:
     tags: ['v*.*.*']
@@ -14,13 +19,11 @@ env:
   NODE_VERSION: '24.22.1'
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      contents: write # create the Release and upload assets
-      id-token: write # artifact attestation
-      attestations: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,14 +31,17 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: Tag matches package.json version
         env:
           TAG: ${{ github.ref_name }}
         run: |
           version="$(node -p "require('./package.json').version")"
           test "v${version}" = "${TAG}" || { echo "tag ${TAG} != package.json v${version}"; exit 1; }
+      - name: Release notes exist
+        env:
+          TAG: ${{ github.ref_name }}
+        run: test -s ".github/release-notes/${TAG}.md"
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -46,11 +52,40 @@ jobs:
           sha256sum kogentic-plan-review-*.vsix > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
           node scripts/check-vsix.mjs kogentic-plan-review-*.vsix
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: |
+            kogentic-plan-review-*.vsix
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the Release and upload assets
+      id-token: write # artifact attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/release-notes
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+      - name: Verify checksums
+        run: sha256sum -c SHA256SUMS.txt
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: kogentic-plan-review-*.vsix
       - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
+          body_path: .github/release-notes/${{ github.ref_name }}.md
           files: |
             kogentic-plan-review-*.vsix
             SHA256SUMS.txt

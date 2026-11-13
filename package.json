@@ -1,0 +1,263 @@
+{
+  "name": "kogentic-plan-review",
+  "displayName": "Kogentic Plan Review",
+  "description": "Review, comment on and approve any coding agent's plan before code changes: Claude Code, Cursor, Copilot and PLAN.md. Risk checklist, overlap warnings and a real blocking gate for Claude Code.",
+  "version": "0.1.0",
+  "publisher": "kogentic",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#000000",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kellyadamtan/kogentic-plan-review"
+  },
+  "bugs": {
+    "url": "https://github.com/kellyadamtan/kogentic-plan-review/issues"
+  },
+  "homepage": "https://github.com/kellyadamtan/kogentic-plan-review#readme",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "keywords": [
+    "plan",
+    "review",
+    "claude code",
+    "cursor",
+    "copilot",
+    "agents"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:PLAN.md",
+    "workspaceContains:plans/**/*.md",
+    "workspaceContains:.cursor/plans/**/*.plan.md",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kogenticPlanReview",
+          "title": "Plans",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "kogenticPlanReview": [
+        {
+          "id": "kogenticPlanReview.plans",
+          "name": "Plans"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kogenticPlanReview.openPlan",
+        "title": "Open Plan Review",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.refresh",
+        "title": "Refresh Plans",
+        "category": "Kogentic",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "kogenticPlanReview.approve",
+        "title": "Approve Plan",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.requestChanges",
+        "title": "Request Changes",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.reject",
+        "title": "Reject Plan",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.markDone",
+        "title": "Mark Plan Done",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.enableClaudeGate",
+        "title": "Enable Blocking Gate for Claude Code",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.disableClaudeGate",
+        "title": "Disable Blocking Gate for Claude Code",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.copyGateToken",
+        "title": "Copy Claude Code Gate Token",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.insertPlanFirstRule",
+        "title": "Insert Plan-First Rule",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.showOverlaps",
+        "title": "Show Overlapping Plans",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.exportReview",
+        "title": "Copy Review as Markdown",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.signIn",
+        "title": "Sign In to Kogentic (optional)",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.signOut",
+        "title": "Sign Out of Kogentic",
+        "category": "Kogentic"
+      },
+      {
+        "command": "kogenticPlanReview.sendToKogentic",
+        "title": "Send Plan to Kogentic (optional)",
+        "category": "Kogentic"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "kogenticPlanReview.refresh",
+          "when": "view == kogenticPlanReview.plans",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "kogenticPlanReview.approve",
+          "when": "view == kogenticPlanReview.plans && viewItem == plan",
+          "group": "1_decide@1"
+        },
+        {
+          "command": "kogenticPlanReview.requestChanges",
+          "when": "view == kogenticPlanReview.plans && viewItem == plan",
+          "group": "1_decide@2"
+        },
+        {
+          "command": "kogenticPlanReview.reject",
+          "when": "view == kogenticPlanReview.plans && viewItem == plan",
+          "group": "1_decide@3"
+        },
+        {
+          "command": "kogenticPlanReview.markDone",
+          "when": "view == kogenticPlanReview.plans && viewItem == plan",
+          "group": "2_other@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "kogenticPlanReview.sendToKogentic",
+          "when": "config.kogenticPlanReview.kogentic.enabled"
+        },
+        {
+          "command": "kogenticPlanReview.signIn",
+          "when": "config.kogenticPlanReview.kogentic.enabled"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Kogentic Plan Review",
+      "properties": {
+        "kogenticPlanReview.planGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "PLAN.md",
+            "plans/**/*.md",
+            "docs/plans/**/*.md",
+            ".cursor/plans/**/*.plan.md"
+          ],
+          "description": "Workspace globs to watch for plan files."
+        },
+        "kogenticPlanReview.includeGlobalPlans": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also show plans from ~/.claude/plans and ~/.cursor/plans."
+        },
+        "kogenticPlanReview.recordApprovals": {
+          "type": "boolean",
+          "default": false,
+          "description": "Append each decision to .kogentic/approvals.jsonl in the workspace."
+        },
+        "kogenticPlanReview.gate.port": {
+          "type": "integer",
+          "default": 4815,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Port for the local Claude Code gate server. It always binds to 127.0.0.1 only."
+        },
+        "kogenticPlanReview.gate.timeoutSeconds": {
+          "type": "integer",
+          "default": 3600,
+          "minimum": 30,
+          "description": "How long the gate holds a Claude Code request waiting for your decision. On timeout the plan is denied."
+        },
+        "kogenticPlanReview.kogentic.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt in to the optional Kogentic connector (send a plan for team approval). Off by default. Nothing is sent unless you run the command and confirm.",
+          "scope": "machine"
+        },
+        "kogenticPlanReview.kogentic.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Kogentic API base URL. No default. Must be https:// (http:// only for localhost). User settings only: a workspace cannot set it.",
+          "scope": "machine"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p . --noEmit && tsc -p test/integration --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "npm run build && tsc -p test/integration && node out/integration/runTest.js",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build -- --production"
+  },
+  "dependencies": {
+    "markdown-it": "15.0.3",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/markdown-it": "14.2.0",
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.1.1",
+    "esbuild": "0.28.2",
+    "eslint": "10.14.0",
+    "mocha": "12.0.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2",
+    "vitest": "5.1.0"
+  }
+}

@@ -1,0 +1,57 @@
+/* Kogentic Plan Review. Brand accent #c6613f; everything else follows the editor theme. */
+:root {
+  --kpr-accent: #c6613f;
+  --kpr-ink: #000000;
+}
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  padding: 0 20px 40px;
+  line-height: 1.5;
+}
+h1 { font-size: 1.6em; margin: 0.6em 0 0.2em; }
+h2 { font-size: 1.1em; margin: 1.2em 0 0.4em; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); padding-bottom: 2px; }
+code { font-family: var(--vscode-editor-font-family); background: var(--vscode-textCodeBlock-background); padding: 0 3px; border-radius: 3px; }
+pre { background: var(--vscode-textCodeBlock-background); padding: 8px; overflow-x: auto; }
+pre code { padding: 0; }
+a { color: var(--vscode-textLink-foreground); }
+.kpr-muted { color: var(--vscode-descriptionForeground); }
+.kpr-path { font-size: 0.85em; word-break: break-all; }
+.kpr-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; }
+@media (max-width: 800px) { .kpr-layout { grid-template-columns: 1fr; } }
+.kpr-side { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; }
+.kpr-banner { background: var(--kpr-accent); color: var(--kpr-ink); font-weight: 600; padding: 8px 12px; margin: 12px 0 0; border-radius: 4px; }
+.kpr-badge { border: 1px solid var(--kpr-accent); color: var(--kpr-accent); border-radius: 10px; padding: 0 8px; font-size: 0.85em; }
+.kpr-status { font-weight: 600; }
+.kpr-s-approved, .kpr-s-done { color: var(--vscode-foreground); }
+.kpr-s-approved::before, .kpr-s-done::before { content: "✓ "; color: var(--kpr-accent); }
+.kpr-s-rejected::before { content: "✕ "; }
+.kpr-s-changes_requested::before, .kpr-s-pending::before { content: "● "; color: var(--kpr-accent); }
+.kpr-plan .kpr-c { cursor: pointer; border-left: 2px solid transparent; padding-left: 6px; margin-left: -8px; }
+.kpr-plan .kpr-c:hover { border-left-color: var(--kpr-accent); }
+.kpr-flash { background: color-mix(in srgb, var(--kpr-accent) 20%, transparent); }
+.kpr-form { margin: 6px 0 12px; padding: 8px; border: 1px solid var(--kpr-accent); border-radius: 4px; }
+.kpr-form label { display: block; font-size: 0.85em; margin-bottom: 4px; }
+textarea { width: 100%; box-sizing: border-box; font-family: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, rgba(128,128,128,.4)); }
+.kpr-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.kpr-btn { font-family: inherit; padding: 4px 12px; border-radius: 2px; cursor: pointer; border: 1px solid var(--kpr-accent); background: transparent; color: var(--vscode-foreground); }
+.kpr-btn:hover { background: color-mix(in srgb, var(--kpr-accent) 15%, transparent); }
+.kpr-primary { background: var(--kpr-accent); color: var(--kpr-ink); font-weight: 600; }
+.kpr-primary:hover { background: #d4744f; }
+.kpr-link { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; padding: 0; font-size: 0.85em; }
+.kpr-checklist ul, .kpr-comments ul, .kpr-overlaps ul, .kpr-todos ul { list-style: none; padding-left: 0; }
+.kpr-item { margin: 6px 0; }
+.kpr-level { display: inline-block; min-width: 3.2em; font-size: 0.75em; text-transform: uppercase; font-weight: 700; }
+.kpr-risk .kpr-level { color: var(--kpr-accent); }
+.kpr-info .kpr-level, .kpr-ok .kpr-level { color: var(--vscode-descriptionForeground); }
+.kpr-detail { font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-left: 3.6em; }
+.kpr-count { font-weight: normal; color: var(--kpr-accent); font-size: 0.9em; }
+.kpr-overlaps { border-left: 3px solid var(--kpr-accent); padding-left: 8px; }
+.kpr-todo-status { display: inline-block; min-width: 6em; font-size: 0.8em; color: var(--vscode-descriptionForeground); }
+.kpr-todo-completed .kpr-todo-status::before { content: "✓ "; color: var(--kpr-accent); }
+.kpr-todo-completed { text-decoration: line-through; opacity: 0.8; }
+.kpr-comments li { margin: 8px 0; }
+.kpr-ctext { white-space: pre-wrap; }
+:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
